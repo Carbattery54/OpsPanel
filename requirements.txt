@@ -1,0 +1,13 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+sqlmodel==0.0.38
+jinja2==3.1.4
+python-multipart==0.0.9
+cryptography==42.0.8
+argon2-cffi==23.1.0
+pydantic-settings==2.3.3
+asyncssh>=2.23.1
+pypsrp==0.8.0
+itsdangerous==2.2.0
+httpx==0.28.1
+

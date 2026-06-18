@@ -1,0 +1,36 @@
+<div class="group-sidebar" id="groups-list-container">
+  <div class="group-pill {% if not active_group_id %}active{% endif %}"
+       hx-get="/hosts/table"
+       hx-target="#hosts-table-container"
+       hx-swap="outerHTML"
+       onclick="document.querySelectorAll('.group-pill').forEach(el => el.classList.remove('active')); this.classList.add('active');">
+    <span>All Hosts</span>
+    <span class="group-count">{{ total_hosts_count }}</span>
+  </div>
+
+  {% for group in groups %}
+  <div class="group-pill {% if active_group_id == group.id %}active{% endif %}"
+       hx-get="/hosts/table?group_id={{ group.id }}"
+       hx-target="#hosts-table-container"
+       hx-swap="outerHTML"
+       onclick="if(!event.target.closest('.delete-group-btn')) { document.querySelectorAll('.group-pill').forEach(el => el.classList.remove('active')); this.classList.add('active'); }">
+    <span>{{ group.name }}</span>
+    <div style="display: flex; align-items: center; gap: 0.5rem; position: relative;">
+      <span class="group-count">{{ group.hosts|length }}</span>
+      <button hx-delete="/groups/{{ group.id }}"
+              hx-confirm="Are you sure you want to delete group '{{ group.name }}'? All hosts inside will be set to 'No Group'."
+              hx-target="#groups-list-container"
+              hx-swap="outerHTML"
+              class="delete-group-btn"
+              onclick="event.stopPropagation();"
+              style="background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0.125rem; border-radius: var(--radius-sm); transition: var(--transition-fast);"
+              title="Delete Group">
+        <!-- Raw SVG Trash Icon -->
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width: 0.875rem; height: 0.875rem;">
+          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  {% endfor %}
+</div>

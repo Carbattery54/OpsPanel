@@ -1,0 +1,32 @@
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.env
+venv/
+env/
+ENV/
+.venv/
+
+# Databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Project-specific local files & secrets
+scratch/
+grafana/data/
+prometheus/file_sd/opspanel_targets.json
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp

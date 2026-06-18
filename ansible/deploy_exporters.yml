@@ -1,0 +1,103 @@
+---
+- name: Deploy Metrics Exporters to Managed Estate
+  hosts: all
+  become: yes
+  tasks:
+    # Linux Target Exporter Setup
+    - name: Linux node_exporter setup
+      when: ansible_system == 'Linux'
+      block:
+        - name: Create prometheus group
+          group:
+            name: prometheus
+            state: present
+            system: yes
+
+        - name: Create prometheus user
+          user:
+            name: prometheus
+            group: prometheus
+            shell: /sbin/nologin
+            state: present
+            system: yes
+            create_home: no
+
+        - name: Download node_exporter binary
+          get_url:
+            url: https://github.com/prometheus/node_exporter/releases/download/v1.8.1/node_exporter-1.8.1.linux-amd64.tar.gz
+            dest: /tmp/node_exporter.tar.gz
+            mode: '0644'
+
+        - name: Extract node_exporter archive
+          unarchive:
+            src: /tmp/node_exporter.tar.gz
+            dest: /tmp
+            remote_src: yes
+
+        - name: Copy binary to /usr/local/bin
+          copy:
+            src: /tmp/node_exporter-1.8.1.linux-amd64/node_exporter
+            dest: /usr/local/bin/node_exporter
+            remote_src: yes
+            owner: prometheus
+            group: prometheus
+            mode: '0755'
+
+        - name: Setup systemd service unit
+          copy:
+            content: |
+              [Unit]
+              Description=Prometheus Node Exporter
+              Wants=network-online.target
+              After=network-online.target
+
+              [Service]
+              User=prometheus
+              Group=prometheus
+              Type=simple
+              ExecStart=/usr/local/bin/node_exporter
+
+              [Install]
+              WantedBy=multi-user.target
+            dest: /etc/systemd/system/node_exporter.service
+            mode: '0644'
+
+        - name: Enable and restart node_exporter service
+          systemd:
+            name: node_exporter
+            state: restarted
+            enabled: yes
+            daemon_reload: yes
+
+        - name: Open firewall port 9100
+          firewalld:
+            port: 9100/tcp
+            permanent: yes
+            state: enabled
+            immediate: yes
+          ignore_errors: yes
+
+    # Windows Target Exporter Setup
+    - name: Windows windows_exporter setup
+      when: ansible_os_family == 'Windows'
+      block:
+        - name: Install windows_exporter via MSI
+          win_package:
+            path: https://github.com/prometheus/windows_exporter/releases/download/v0.25.1/windows_exporter-0.25.1-amd64.msi
+            state: present
+            arguments: 'ENABLED_COLLECTORS="cpu,os,logical_disk,net,system"'
+
+        - name: Ensure service is running
+          win_service:
+            name: windows_exporter
+            state: started
+            start_mode: auto
+
+        - name: Open firewall port 9182
+          win_firewall_rule:
+            name: Prometheus Windows Exporter
+            localport: 9182
+            action: allow
+            direction: in
+            protocol: tcp
+            state: present

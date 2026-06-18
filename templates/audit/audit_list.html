@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs | OpsPanel{% endblock %}
+
+{% block page_title %}Security & Operations Audit Logs{% endblock %}
+{% block page_subtitle %}Comprehensive historical ledger of operator actions and credentials access{% endblock %}
+
+{% block content %}
+<div class="card" style="width: 100%; padding: 0; overflow: hidden;">
+  <div style="width: 100%; overflow-x: auto;">
+    {% if events %}
+      <table class="data-table" style="width: 100%; min-width: 900px;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--border); background: rgba(0, 0, 0, 0.15);">
+            <th style="padding: 1rem 1.25rem;">Timestamp</th>
+            <th style="padding: 1rem 1.25rem;">Actor</th>
+            <th style="padding: 1rem 1.25rem;">Action</th>
+            <th style="padding: 1rem 1.25rem;">Target Host</th>
+            <th style="padding: 1rem 1.25rem;">Source IP</th>
+            <th style="padding: 1rem 1.25rem;">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in events %}
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 1rem 1.25rem; white-space: nowrap; color: var(--text-secondary); font-size: 0.8125rem;">
+                {{ event.created_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+              </td>
+              <td style="padding: 1rem 1.25rem;">
+                <span style="font-weight: 600; color: var(--text-primary);">{{ event.actor }}</span>
+              </td>
+              <td style="padding: 1rem 1.25rem;">
+                {% if event.action.value == 'ssh_open' or event.action.value == 'host_create' or event.action.value == 'login' %}
+                  <span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.75rem; font-weight: 600; padding: 0.125rem 0.5rem;">
+                    {{ event.action.value }}
+                  </span>
+                {% elif event.action.value == 'winrm_run' or event.action.value == 'rdp_launch' %}
+                  <span class="status-badge" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); font-size: 0.75rem; font-weight: 600; padding: 0.125rem 0.5rem;">
+                    {{ event.action.value }}
+                  </span>
+                {% elif event.action.value == 'cred_resolve' or event.action.value == 'host_update' %}
+                  <span class="status-badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.75rem; font-weight: 600; padding: 0.125rem 0.5rem;">
+                    {{ event.action.value }}
+                  </span>
+                {% elif event.action.value == 'host_delete' or event.action.value == 'login_fail' or event.action.value == 'ssh_close' %}
+                  <span class="status-badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.75rem; font-weight: 600; padding: 0.125rem 0.5rem;">
+                    {{ event.action.value }}
+                  </span>
+                {% else %}
+                  <span class="status-badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text-secondary); border: 1px solid var(--border); font-size: 0.75rem; font-weight: 600; padding: 0.125rem 0.5rem;">
+                    {{ event.action.value }}
+                  </span>
+                {% endif %}
+              </td>
+              <td style="padding: 1rem 1.25rem;">
+                {% if event.host_id %}
+                  <span style="font-weight: 500; color: var(--primary);">{{ hosts_map.get(event.host_id, 'Host #' ~ event.host_id) }}</span>
+                {% else %}
+                  <span style="color: var(--text-muted); font-size: 0.8125rem;">—</span>
+                {% endif %}
+              </td>
+              <td style="padding: 1rem 1.25rem;">
+                <code style="background: rgba(255, 255, 255, 0.05); padding: 0.125rem 0.375rem; border-radius: var(--radius-sm); font-size: 0.8125rem;">{{ event.source_ip or '—' }}</code>
+              </td>
+              <td style="padding: 1rem 1.25rem; color: var(--text-secondary); max-width: 450px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ event.detail }}">
+                {{ event.detail or 'No details provided' }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width: 3rem; height: 3rem; margin-bottom: 1rem; opacity: 0.3;">
+          <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+        </svg>
+        <p style="font-weight: 500; font-size: 1rem; color: var(--text-secondary);">No audit events recorded yet</p>
+        <p style="font-size: 0.8125rem; margin-top: 0.25rem;">Security events, login details, and remotely executed scripts logs will appear here.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

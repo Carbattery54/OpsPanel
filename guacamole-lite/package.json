@@ -1,0 +1,12 @@
+{
+  "name": "guacamole-lite-service",
+  "version": "1.0.0",
+  "description": "Lightweight Node.js proxy for Guacamole protocol over WebSockets",
+  "main": "index.js",
+  "dependencies": {
+    "guacamole-lite": "^1.1.2"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}SSH Terminal - {{ host.name }}{% endblock %}
+
+{% block extra_head %}
+<!-- Xterm.js Stylesheets and Scripts -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<style>
+  .main-content {
+    max-width: calc(100vw - 260px);
+    overflow-x: hidden;
+    min-width: 0;
+  }
+  .terminal-card {
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+  .terminal-container {
+    width: 100%;
+    height: 70vh;
+    background-color: #000;
+    border-radius: var(--radius-lg);
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    max-width: 100%;
+    min-width: 0;
+  }
+  #terminal {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+</style>
+{% endblock %}
+
+{% block page_title %}SSH Terminal: {{ host.name }}{% endblock %}
+{% block page_subtitle %}Interactive PTY session for {{ host.hostname }}{% endblock %}
+
+{% block header_actions %}
+<a href="/hosts/{{ host.id }}" class="btn btn-secondary">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 1rem; height: 1rem; margin-right: 0.375rem;">
+    <line x1="19" y1="12" x2="5" y2="12"></line>
+    <polyline points="12 19 5 12 12 5"></polyline>
+  </svg>
+  Back to Host Details
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card terminal-card" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="term-status-dot" class="status-dot" style="background-color: var(--warning); box-shadow: 0 0 8px var(--warning);"></span>
+      <span id="term-status-text" style="font-size: 0.875rem; font-weight: 500;">Connecting...</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <label for="font-size-select" style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Font Size:</label>
+        <select id="font-size-select" class="form-control" style="padding: 0.25rem 0.5rem; width: auto; font-size: 0.75rem; background: rgba(0, 0, 0, 0.4); height: auto; border-radius: var(--radius-sm); border-color: var(--border);">
+          <option value="12">12px</option>
+          <option value="14">14px</option>
+          <option value="16">16px</option>
+          <option value="18">18px</option>
+          <option value="20">20px</option>
+          <option value="24">24px</option>
+        </select>
+      </div>
+      <span style="font-size: 0.75rem; color: var(--text-muted);">PTY: xterm-color</span>
+    </div>
+  </div>
+
+  <div class="terminal-container">
+    <div id="terminal"></div>
+  </div>
+</div>
+
+<script>
+  // Get font size from localStorage or default to 14
+  const savedFontSize = parseInt(localStorage.getItem('terminal-font-size') || '14', 10);
+
+  // Initialize Xterm
+  const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: 'Courier New, Courier, monospace',
+    fontSize: savedFontSize,
+    theme: {
+      background: '#000000',
+      foreground: '#ffffff',
+      cursor: '#38bdf8'
+    },
+    copyOnSelect: true
+  });
+
+  // Attach custom key event handler for Copy (Ctrl+C / Cmd+C) and Paste (Ctrl+V / Cmd+V)
+  term.attachCustomKeyEventHandler((event) => {
+    const isCopy = (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'c' || event.code === 'KeyC');
+    const isPaste = (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'v' || event.code === 'KeyV');
+
+    if (isCopy && event.type === 'keydown') {
+      if (term.hasSelection()) {
+        const selectedText = term.getSelection();
+        navigator.clipboard.writeText(selectedText).catch(err => {
+          console.error('Failed to copy text: ', err);
+        });
+        return false; // Prevent passing event to xterm.js
+      }
+    }
+
+    if (isPaste && event.type === 'keydown') {
+      navigator.clipboard.readText().then(text => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'data', data: text }));
+        }
+      }).catch(err => {
+        console.error('Failed to read clipboard: ', err);
+      });
+      return false; // Prevent passing event to xterm.js
+    }
+
+    return true; // Let xterm.js handle all other events
+  });
+  
+  const fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  
+  // Render in element
+  term.open(document.getElementById('terminal'));
+  fitAddon.fit();
+
+  // Create WebSocket
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws/ssh/{{ host.id }}`;
+  const ws = new WebSocket(wsUrl);
+
+  const statusDot = document.getElementById('term-status-dot');
+  const statusText = document.getElementById('term-status-text');
+
+  ws.onopen = () => {
+    statusDot.style.backgroundColor = 'var(--success)';
+    statusDot.style.boxShadow = '0 0 8px var(--success)';
+    statusText.textContent = 'Connected';
+    
+    // Send initial size resize event
+    sendResize();
+  };
+
+  ws.onmessage = (event) => {
+    term.write(event.data);
+  };
+
+  ws.onerror = (error) => {
+    console.error('WebSocket Error:', error);
+    statusDot.style.backgroundColor = 'var(--danger)';
+    statusDot.style.boxShadow = '0 0 8px var(--danger)';
+    statusText.textContent = 'Connection Error';
+  };
+
+  ws.onclose = () => {
+    statusDot.style.backgroundColor = 'var(--text-muted)';
+    statusDot.style.boxShadow = 'none';
+    statusText.textContent = 'Disconnected';
+    term.write('\r\n\r\n[Connection Closed]\r\n');
+  };
+
+  // Write terminal inputs back to socket
+  term.onData((data) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'data', data: data }));
+    }
+  });
+
+  // Handle Resize
+  function sendResize() {
+    if (ws.readyState === WebSocket.OPEN) {
+      const { cols, rows } = fitAddon.proposeDimensions();
+      if (cols && rows) {
+        ws.send(JSON.stringify({
+          type: 'resize',
+          cols: cols,
+          rows: rows
+        }));
+      }
+    }
+  }
+
+  // Set initial value of dropdown to match saved font size
+  const fontSizeSelect = document.getElementById('font-size-select');
+  fontSizeSelect.value = savedFontSize;
+
+  fontSizeSelect.addEventListener('change', (e) => {
+    const newSize = parseInt(e.target.value, 10);
+    localStorage.setItem('terminal-font-size', newSize);
+    term.options.fontSize = newSize;
+    
+    // Give xterm a brief moment to update character dimensions before refitting
+    setTimeout(() => {
+      fitAddon.fit();
+      sendResize();
+    }, 50);
+  });
+
+  // Window resize listener
+  window.addEventListener('resize', () => {
+    fitAddon.fit();
+    sendResize();
+  });
+
+  // Focus terminal automatically
+  term.focus();
+</script>
+{% endblock %}

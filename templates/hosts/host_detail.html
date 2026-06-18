@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}Host Details - {{ host.name }}{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .metric-card {
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    opacity: 0.8;
+  }
+  .metric-value-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.75rem;
+  }
+  .metric-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .metric-value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    color: var(--text-primary);
+  }
+  .metric-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
+  }
+  .badge-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+  }
+  .badge-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+  }
+  .badge-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+  .badge-muted {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 8px currentColor;
+  }
+  
+  .grafana-container {
+    width: 100%;
+    height: 600px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+  }
+</style>
+{% endblock %}
+
+{% block page_title %}Host Details: {{ host.name }}{% endblock %}
+{% block page_subtitle %}Live performance metrics and deep dive telemetry{% endblock %}
+
+{% block header_actions %}
+<div style="display: flex; gap: 0.75rem; align-items: center;">
+  <!-- Simulation Toggle -->
+  <div class="card" style="padding: 0.5rem 1rem; border-radius: var(--radius-md); display: flex; align-items: center; gap: 0.75rem; flex-direction: row; margin: 0; box-shadow: none;">
+    <span class="form-label" style="margin: 0; font-size: 0.8125rem;">Demo Simulation</span>
+    <label class="switch">
+      <input type="checkbox" id="mock-toggle" onchange="toggleSimulation(this.checked)">
+      <span class="slider"></span>
+    </label>
+  </div>
+  {% if host.os_type.value == 'linux' %}
+  <a href="/hosts/{{ host.id }}/ssh" class="btn btn-primary" style="background: linear-gradient(135deg, var(--primary), var(--secondary)); border: none; box-shadow: 0 0 15px var(--primary-glow); display: inline-flex; align-items: center;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 1rem; height: 1rem; margin-right: 0.375rem;">
+      <polyline points="4 17 10 11 4 5"></polyline>
+      <line x1="12" y1="19" x2="20" y2="19"></line>
+    </svg>
+    Launch SSH Terminal
+  </a>
+  {% endif %}
+  {% if host.os_type.value == 'windows' %}
+  <a href="/hosts/{{ host.id }}/rdp" class="btn btn-primary" style="background: linear-gradient(135deg, var(--primary), var(--secondary)); border: none; box-shadow: 0 0 15px var(--primary-glow); display: inline-flex; align-items: center;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 1rem; height: 1rem; margin-right: 0.375rem;">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      <line x1="9" y1="3" x2="9" y2="21"></line>
+    </svg>
+    Launch RDP Session
+  </a>
+  {% endif %}
+  
+  <a href="/" class="btn btn-secondary">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 1rem; height: 1rem; margin-right: 0.375rem;">
+      <line x1="19" y1="12" x2="5" y2="12"></line>
+      <polyline points="12 19 5 12 12 5"></polyline>
+    </svg>
+    Back to Inventory
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+  <!-- Metadata Summary Card -->
+  <div class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+    <div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Status</div>
+      <div style="font-size: 1.125rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+        <span id="status-indicator" class="status-dot" style="color: var(--text-muted);"></span>
+        <span id="status-text">Connecting...</span>
+      </div>
+    </div>
+    <div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Hostname/IP</div>
+      <div style="font-size: 1.125rem; font-weight: 600; margin-top: 0.25rem;"><code>{{ host.hostname }}</code></div>
+    </div>
+    <div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">OS Type</div>
+      <div style="font-size: 1.125rem; font-weight: 600; margin-top: 0.25rem; text-transform: capitalize;">{{ host.os_type.value }}</div>
+    </div>
+    <div>
+      <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Prometheus Instance</div>
+      <div style="font-size: 1.125rem; font-weight: 600; margin-top: 0.25rem;"><code>{{ host.prometheus_instance }}</code></div>
+    </div>
+  </div>
+
+  <!-- Realtime Chart.js Cards Grid -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+    
+    <!-- CPU Utilization -->
+    <div class="card metric-card">
+      <div class="metric-value-container">
+        <span class="metric-title">CPU Utilization</span>
+        <span id="cpu-badge" class="metric-badge badge-muted">Offline</span>
+      </div>
+      <div class="metric-value"><span id="cpu-value">—</span><span style="font-size: 1.25rem; font-weight: 500; color: var(--text-secondary);">%</span></div>
+      <div style="height: 120px; margin-top: 1rem;">
+        <canvas id="cpuChart"></canvas>
+      </div>
+    </div>
+
+    <!-- RAM Utilization -->
+    <div class="card metric-card">
+      <div class="metric-value-container">
+        <span class="metric-title">Memory Usage</span>
+        <span id="ram-badge" class="metric-badge badge-muted">Offline</span>
+      </div>
+      <div class="metric-value"><span id="ram-value">—</span><span style="font-size: 1.25rem; font-weight: 500; color: var(--text-secondary);">%</span></div>
+      <div style="height: 120px; margin-top: 1rem;">
+        <canvas id="ramChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Disk Space Used -->
+    <div class="card metric-card">
+      <div class="metric-value-container">
+        <span class="metric-title">Disk Usage (Root/C:)</span>
+        <span id="disk-badge" class="metric-badge badge-muted">Offline</span>
+      </div>
+      <div class="metric-value"><span id="disk-value">—</span><span style="font-size: 1.25rem; font-weight: 500; color: var(--text-secondary);">%</span></div>
+      <div style="height: 120px; margin-top: 1rem;">
+        <canvas id="diskChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Embedded Grafana Dashboard -->
+  <div class="card" style="padding: 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.5rem;">
+      <h3 style="font-size: 1.125rem;">Embedded Grafana Telemetry</h3>
+      <span style="font-size: 0.75rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.25rem 0.5rem; border-radius: var(--radius-sm);">Grafana Provisioned</span>
+    </div>
+    <div style="position: relative; overflow: hidden; border-radius: var(--radius-md);">
+      <iframe id="grafana-iframe" class="grafana-container" src="" allowfullscreen></iframe>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const hostId = {{ host.id }};
+  const prometheusInstance = "{{ host.prometheus_instance }}";
+  
+  let grafanaBaseUrl = "{{ grafana_url }}";
+  try {
+    const urlObj = new URL(grafanaBaseUrl);
+    if (urlObj.hostname === 'grafana' || urlObj.hostname === 'prometheus') {
+      urlObj.hostname = window.location.hostname;
+      grafanaBaseUrl = urlObj.toString().replace(/\/$/, "");
+    }
+  } catch (e) {
+    console.error("Invalid grafana_url configuration:", e);
+  }
+  const dashboardUid = "{{ grafana_dashboard_uid }}";
+  const iframeSrc = `${grafanaBaseUrl}/d/${dashboardUid}/host-metrics?var-instance=${prometheusInstance}&kiosk&theme=dark`;
+  document.getElementById("grafana-iframe").src = iframeSrc;
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false }
+    },
+    scales: {
+      x: { display: false },
+      y: {
+        min: 0,
+        max: 100,
+        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+        ticks: {
+          color: 'rgba(255, 255, 255, 0.4)',
+          font: { size: 9 }
+        }
+      }
+    },
+    elements: {
+      point: { radius: 0 },
+      line: { tension: 0.4 }
+    }
+  };
+
+  function initChart(canvasId, lineColor, fillColor) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const initialData = Array(30).fill(null);
+    const labels = Array(30).fill('');
+    
+    return new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: initialData,
+          borderColor: lineColor,
+          backgroundColor: fillColor,
+          fill: true,
+          borderWidth: 2
+        }]
+      },
+      options: chartOptions
+    });
+  }
+
+  const cpuChart = initChart('cpuChart', 'rgba(56, 189, 248, 1)', 'rgba(56, 189, 248, 0.08)');
+  const ramChart = initChart('ramChart', 'rgba(168, 85, 247, 1)', 'rgba(168, 85, 247, 0.08)');
+  const diskChart = initChart('diskChart', 'rgba(16, 185, 129, 1)', 'rgba(16, 185, 129, 0.08)');
+
+  function updateChartData(chart, value) {
+    const data = chart.data.datasets[0].data;
+    data.push(value);
+    if (data.length > 30) {
+      data.shift();
+    }
+    chart.update('none');
+  }
+
+  function updateUI(metric, value) {
+    const valueEl = document.getElementById(`${metric}-value`);
+    const badgeEl = document.getElementById(`${metric}-badge`);
+    
+    valueEl.textContent = value.toFixed(1);
+    
+    let status = 'Optimal';
+    let badgeClass = 'badge-success';
+    
+    if (metric === 'cpu') {
+      if (value > 90) { status = 'Critical'; badgeClass = 'badge-danger'; }
+      else if (value > 70) { status = 'Warning'; badgeClass = 'badge-warning'; }
+    } else if (metric === 'ram') {
+      if (value > 95) { status = 'Critical'; badgeClass = 'badge-danger'; }
+      else if (value > 80) { status = 'Warning'; badgeClass = 'badge-warning'; }
+    } else if (metric === 'disk') {
+      if (value > 95) { status = 'Critical'; badgeClass = 'badge-danger'; }
+      else if (value > 85) { status = 'Warning'; badgeClass = 'badge-warning'; }
+    }
+    
+    badgeEl.textContent = status;
+    badgeEl.className = `metric-badge ${badgeClass}`;
+  }
+
+  let eventSource = null;
+
+  function connectStream(useMock = false) {
+    if (eventSource) {
+      eventSource.close();
+    }
+    
+    const streamUrl = `/api/metrics/${hostId}/stream` + (useMock ? '?mock=true' : '');
+    eventSource = new EventSource(streamUrl);
+    
+    const statusText = document.getElementById("status-text");
+    const statusIndicator = document.getElementById("status-indicator");
+    
+    statusIndicator.style.color = "var(--warning)";
+    statusText.textContent = "Connecting...";
+
+    eventSource.onopen = function() {
+      // Stream opened
+    };
+
+    eventSource.onmessage = function(event) {
+      try {
+        const payload = JSON.parse(event.data);
+        
+        if (payload.status === "online") {
+          statusIndicator.style.color = "var(--success)";
+          statusText.textContent = "Online";
+          
+          updateUI('cpu', payload.cpu);
+          updateUI('ram', payload.ram);
+          updateUI('disk', payload.disk);
+          
+          updateChartData(cpuChart, payload.cpu);
+          updateChartData(ramChart, payload.ram);
+          updateChartData(diskChart, payload.disk);
+        } else {
+          statusIndicator.style.color = "var(--danger)";
+          statusText.textContent = "Offline";
+          setMetricsOffline();
+        }
+      } catch (err) {
+        console.error("Error parsing SSE metrics:", err);
+      }
+    };
+
+    eventSource.onerror = function() {
+      statusIndicator.style.color = "var(--danger)";
+      statusText.textContent = "Connection Error";
+      setMetricsOffline();
+    };
+  }
+
+  function setMetricsOffline() {
+    ['cpu', 'ram', 'disk'].forEach(metric => {
+      document.getElementById(`${metric}-value`).textContent = "—";
+      const badge = document.getElementById(`${metric}-badge`);
+      badge.textContent = "Offline";
+      badge.className = "metric-badge badge-muted";
+    });
+  }
+
+  function toggleSimulation(enabled) {
+    connectStream(enabled);
+  }
+
+  connectStream(false);
+</script>
+{% endblock %}

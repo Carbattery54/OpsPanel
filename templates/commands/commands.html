@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}Command Library | OpsPanel{% endblock %}
+
+{% block page_title %}Command Library & WinRM Runner{% endblock %}
+{% block page_subtitle %}Remote PowerShell automation console for Windows infrastructure{% endblock %}
+
+{% block extra_head %}
+<style>
+  .commands-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    gap: 1.5rem;
+    height: calc(100vh - 180px);
+    min-height: 650px;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    margin-top: 1rem;
+  }
+
+  /* Monospace Editor Styling */
+  .editor-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1;
+  }
+
+  .code-editor {
+    flex: 1;
+    min-height: 250px;
+    background: #05080c;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: #e2e8f0;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9375rem;
+    padding: 1rem;
+    resize: none;
+    outline: none;
+    line-height: 1.5;
+    transition: var(--transition-fast);
+  }
+
+  .code-editor:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 12px var(--primary-glow);
+  }
+
+  /* Monospace Terminal/Console Styling */
+  .console-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 250px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: #0d1117;
+    overflow: hidden;
+  }
+
+  .console-header {
+    background: #161b22;
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+  }
+
+  .console-output {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: #c9d1d9;
+    white-space: pre-wrap;
+  }
+
+  /* Log Stream Lines styling */
+  .log-line {
+    margin-bottom: 0.25rem;
+  }
+  .log-line.system {
+    color: #58a6ff;
+  }
+  .log-line.stdout {
+    color: #c9d1d9;
+  }
+  .log-line.stderr {
+    color: #ff7b72;
+  }
+
+  /* Host selector checkboxes */
+  .checkbox-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: var(--radius-sm);
+    transition: var(--transition-fast);
+    cursor: pointer;
+  }
+
+  .checkbox-container:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .checkbox-container input[type="checkbox"] {
+    margin-top: 0.25rem;
+    accent-color: var(--primary);
+  }
+
+  .checkbox-label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.875rem;
+    user-select: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="commands-layout">
+  
+  <!-- Left Column: Saved Commands Library -->
+  <div class="panel card">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+      <h3 style="font-size: 1.125rem;">Command Library</h3>
+      <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="clearEditor()">New</button>
+    </div>
+    
+    <div class="panel-body" id="saved-commands-container">
+      {% include "commands/saved_commands_list.html" %}
+    </div>
+  </div>
+
+  <!-- Middle Column: Script Editor & Console -->
+  <div class="panel" style="gap: 1.25rem;">
+    <!-- Editor Pane -->
+    <div class="card" style="flex: 1; display: flex; flex-direction: column; gap: 1rem;">
+      <div class="editor-wrapper">
+        <div style="display: flex; gap: 1rem; align-items: center;">
+          <input type="text" id="command-name-input" placeholder="Enter command name to save..." class="form-control" style="flex: 1; font-size: 0.875rem;">
+          <button class="btn btn-secondary" onclick="saveToLibrary()" style="font-size: 0.875rem; padding: 0.75rem 1rem;">Save to Library</button>
+        </div>
+        <textarea id="command-body-textarea" placeholder="# Write your PowerShell script here...&#10;Get-Service | Where-Object {$_.Status -eq 'Running'}" class="code-editor"></textarea>
+      </div>
+
+      <div style="display: flex; gap: 1rem;">
+        <button id="run-btn" class="btn btn-primary" onclick="runScript()" style="flex: 1; padding: 0.75rem 1rem;">
+          <span id="run-btn-text">Run Script</span>
+        </button>
+        <button id="clear-btn" class="btn btn-secondary" onclick="clearConsole()" style="padding: 0.75rem 1rem;">Clear Output</button>
+      </div>
+    </div>
+
+    <!-- Console Output Pane -->
+    <div class="console-wrapper">
+      <div class="console-header">
+        <span>Console Log Output</span>
+        <span id="console-status" style="font-size: 0.75rem; font-weight: 500;">Idle</span>
+      </div>
+      <div id="console-output" class="console-output"></div>
+    </div>
+  </div>
+
+  <!-- Right Column: Host Target Selector -->
+  <div class="panel card">
+    <div style="border-bottom: 1px solid var(--border); padding-bottom: 0.75rem;">
+      <h3 style="font-size: 1.125rem;">Target Hosts</h3>
+      <span style="font-size: 0.75rem; color: var(--text-secondary);">Select Windows targets</span>
+    </div>
+    
+    <div class="panel-body">
+      <label class="checkbox-container" style="border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 0.5rem;">
+        <input type="checkbox" id="select-all-hosts" onchange="toggleSelectAll(this)">
+        <span class="checkbox-label" style="font-weight: 600;">Select All Windows Hosts</span>
+      </label>
+      
+      <div id="hosts-checkbox-list" style="display: flex; flex-direction: column; gap: 0.25rem;">
+        {% if hosts %}
+          {% for host in hosts %}
+            <label class="checkbox-container">
+              <input type="checkbox" name="host_ids" value="{{ host.id }}" class="host-cb">
+              <span class="checkbox-label">
+                <span style="font-weight: 500; color: var(--text-primary);">{{ host.name }}</span>
+                <span style="font-size: 0.75rem; color: var(--text-secondary);">{{ host.hostname }}</span>
+              </span>
+            </label>
+          {% endfor %}
+        {% else %}
+          <div style="padding: 2rem 0; text-align: center; color: var(--text-muted); font-size: 0.875rem;">
+            No active Windows hosts registered.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let activeEventSource = null;
+
+  // Clear name input and editor body
+  function clearEditor() {
+    document.getElementById('command-name-input').value = '';
+    document.getElementById('command-body-textarea').value = '';
+  }
+
+  // Populate editor fields from clicked item JSON payload
+  function loadCommand(id) {
+    const dataEl = document.getElementById('cmd-data-' + id);
+    if (dataEl) {
+      const data = JSON.parse(dataEl.textContent);
+      document.getElementById('command-name-input').value = data.name;
+      document.getElementById('command-body-textarea').value = data.body;
+    }
+  }
+
+  // Clear output log pane
+  function clearConsole() {
+    document.getElementById('console-output').innerHTML = '';
+  }
+
+  // Select all / deselect all checkboxes helper
+  function toggleSelectAll(masterCb) {
+    const cbs = document.querySelectorAll('.host-cb');
+    cbs.forEach(cb => {
+      cb.checked = masterCb.checked;
+    });
+  }
+
+  // Save command to library database
+  async function saveToLibrary() {
+    const name = document.getElementById('command-name-input').value.trim();
+    const body = document.getElementById('command-body-textarea').value;
+
+    if (!name) {
+      alert("Please specify a command name.");
+      return;
+    }
+    if (!body.trim()) {
+      alert("Script content is empty.");
+      return;
+    }
+
+    // Submit save request via form post encoded body
+    const formData = new URLSearchParams();
+    formData.append("name", name);
+    formData.append("body", body);
+
+    try {
+      const resp = await fetch("/commands/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: formData.toString()
+      });
+
+      if (resp.ok) {
+        const html = await resp.text();
+        document.getElementById('saved-commands-container').innerHTML = html;
+        
+        // Trigger HTMX processing on the newly generated HTML content
+        htmx.process(document.getElementById('saved-commands-container'));
+      } else {
+        const err = await resp.json();
+        alert("Save failed: " + (err.detail || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Save request failed: " + e);
+    }
+  }
+
+  // Execute script remotely
+  async function runScript() {
+    if (activeEventSource) {
+      return; // Execution in progress
+    }
+
+    const hostCbs = document.querySelectorAll('.host-cb:checked');
+    const hostIds = Array.from(hostCbs).map(cb => parseInt(cb.value));
+    const script = document.getElementById('command-body-textarea').value;
+
+    if (hostIds.length === 0) {
+      alert("Please select at least one Windows host.");
+      return;
+    }
+    if (!script.trim()) {
+      alert("Please write or select a script to run.");
+      return;
+    }
+
+    const runBtn = document.getElementById('run-btn');
+    const runBtnText = document.getElementById('run-btn-text');
+    const statusEl = document.getElementById('console-status');
+    const outputEl = document.getElementById('console-output');
+
+    // UI State Updating
+    runBtn.disabled = true;
+    runBtnText.innerText = "Executing...";
+    statusEl.innerText = "Running";
+    statusEl.style.color = "var(--primary)";
+    
+    // Clear terminal console and print header
+    outputEl.innerHTML = `<div class="log-line system">[System] Starting remote PowerShell run on ${hostIds.length} hosts...</div>`;
+
+    try {
+      const resp = await fetch("/api/winrm/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ host_ids: hostIds, script: script })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        outputEl.innerHTML += `<div class="log-line stderr">[System Error] Failed to launch execution: ${err.detail || "Unknown error"}</div>`;
+        resetUIState();
+        return;
+      }
+
+      const data = await resp.json();
+      const taskId = data.task_id;
+
+      // Connect to SSE stream
+      activeEventSource = new EventSource(`/api/winrm/tasks/${taskId}/stream`);
+      
+      activeEventSource.onmessage = function(event) {
+        const payload = JSON.parse(event.data);
+        
+        // Check for special EOF packet
+        if (payload.host === "system" && payload.stream === "system" && payload.line === "EOF") {
+          activeEventSource.close();
+          activeEventSource = null;
+          resetUIState();
+          return;
+        }
+
+        appendLogLine(payload.host, payload.stream, payload.line);
+      };
+
+      activeEventSource.onerror = function() {
+        // Handle stream disconnection
+        if (activeEventSource) {
+          activeEventSource.close();
+          activeEventSource = null;
+        }
+        outputEl.innerHTML += `<div class="log-line system">[System] Stream completed or disconnected.</div>`;
+        resetUIState();
+      };
+
+    } catch (e) {
+      outputEl.innerHTML += `<div class="log-line stderr">[System Error] Request failed: ${e}</div>`;
+      resetUIState();
+    }
+  }
+
+  function resetUIState() {
+    const runBtn = document.getElementById('run-btn');
+    const runBtnText = document.getElementById('run-btn-text');
+    const statusEl = document.getElementById('console-status');
+
+    runBtn.disabled = false;
+    runBtnText.innerText = "Run Script";
+    statusEl.innerText = "Idle";
+    statusEl.style.color = "var(--text-secondary)";
+  }
+
+  function appendLogLine(host, stream, line) {
+    const outputEl = document.getElementById('console-output');
+    
+    // Style line based on type
+    let logClass = "stdout";
+    if (stream === "stderr") {
+      logClass = "stderr";
+    } else if (stream === "system") {
+      logClass = "system";
+    }
+
+    const prefix = host ? `[${host}] ` : "";
+    const escapedLine = escapeHtml(line);
+    
+    outputEl.innerHTML += `<div class="log-line ${logClass}">${prefix}${escapedLine}</div>`;
+    
+    // Scroll console down to show new content
+    outputEl.scrollTop = outputEl.scrollHeight;
+  }
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+</script>
+{% endblock %}

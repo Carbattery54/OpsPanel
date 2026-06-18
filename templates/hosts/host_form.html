@@ -1,0 +1,135 @@
+<div x-data="{ 
+  os_type: '{{ host.os_type.value if host else 'linux' }}',
+  exporter_port: {{ host.exporter_port if host else 9100 }},
+  credential_source: '{{ host.credential_source.value if host else 'local' }}'
+}" 
+x-init="$watch('os_type', val => exporter_port = (val === 'linux' ? 9100 : 9182))">
+  
+  <div class="modal-header">
+    <h3 style="font-size: 1.25rem;">{{ "Edit Host" if host else "Add Host" }}</h3>
+    <button @click="modalOpen = false" class="modal-close">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+      </svg>
+    </button>
+  </div>
+
+  <form 
+    {% if host %}
+      hx-post="/hosts/{{ host.id }}/edit"
+    {% else %}
+      hx-post="/hosts"
+    {% endif %}
+    hx-target="#hosts-table-container" 
+    hx-swap="outerHTML" 
+    @submit="modalOpen = false"
+    style="display: flex; flex-direction: column; gap: 1rem;"
+  >
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <div class="form-group">
+        <label for="name" class="form-label">Display Name</label>
+        <input type="text" id="name" name="name" class="form-control" placeholder="e.g. web-01" value="{{ host.name if host else '' }}" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="hostname" class="form-label">Hostname / FQDN / IP</label>
+        <input type="text" id="hostname" name="hostname" class="form-control" placeholder="e.g. 10.0.0.5" value="{{ host.hostname if host else '' }}" required>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <div class="form-group">
+        <label for="os_type" class="form-label">OS Type</label>
+        <select id="os_type" name="os_type" class="form-control" x-model="os_type" required>
+          <option value="linux">Linux</option>
+          <option value="windows">Windows</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="group_id" class="form-label">Host Group</label>
+        <select id="group_id" name="group_id" class="form-control">
+          <option value="">No Group</option>
+          {% for group in groups %}
+          <option value="{{ group.id }}" {% if host and host.group_id == group.id %}selected{% endif %}>{{ group.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+      <div class="form-group">
+        <label for="ssh_port" class="form-label">SSH Port</label>
+        <input type="number" id="ssh_port" name="ssh_port" class="form-control" value="{{ host.ssh_port if host else 22 }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="rdp_port" class="form-label">RDP Port</label>
+        <input type="number" id="rdp_port" name="rdp_port" class="form-control" value="{{ host.rdp_port if host else 3389 }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="winrm_port" class="form-label">WinRM Port</label>
+        <input type="number" id="winrm_port" name="winrm_port" class="form-control" value="{{ host.winrm_port if host else 5986 }}" required>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <div class="form-group">
+        <label for="exporter_port" class="form-label">Exporter Port</label>
+        <input type="number" id="exporter_port" name="exporter_port" class="form-control" x-model="exporter_port" required>
+      </div>
+
+      <div class="form-group">
+        <label for="prometheus_instance" class="form-label">Prometheus Instance Label</label>
+        <input type="text" id="prometheus_instance" name="prometheus_instance" class="form-control" placeholder="e.g. web01" value="{{ host.prometheus_instance if host else '' }}" required>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="tags" class="form-label">Tags (comma-separated)</label>
+      <input type="text" id="tags" name="tags" class="form-control" placeholder="e.g. prod, web, dmz" value="{{ host.tags if host else '' }}">
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid var(--border); margin: 0.5rem 0;">
+
+    <!-- Credentials wiring -->
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+      {% if vaultwarden_enabled %}
+      <div class="form-group">
+        <label for="credential_source" class="form-label">Credential Source</label>
+        <select id="credential_source" name="credential_source" class="form-control" x-model="credential_source">
+          <option value="local">Local Encrypted Store</option>
+          <option value="vaultwarden">Vaultwarden Vault</option>
+        </select>
+      </div>
+      {% else %}
+      <input type="hidden" name="credential_source" value="local">
+      {% endif %}
+
+      <!-- Local credentials select list -->
+      <div class="form-group" x-show="credential_source === 'local'">
+        <label for="local_credential_id" class="form-label">Local Credential Profile</label>
+        <select id="local_credential_id" name="local_credential_id" class="form-control" :required="credential_source === 'local'">
+          <option value="">Select a profile...</option>
+          {% for cred in credentials %}
+          <option value="{{ cred.id }}" {% if host and host.local_credential_id == cred.id %}selected{% endif %}>{{ cred.name }} ({{ cred.username }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Vaultwarden target select input -->
+      {% if vaultwarden_enabled %}
+      <div class="form-group" x-show="credential_source === 'vaultwarden'">
+        <label for="vaultwarden_item_id" class="form-label">Vaultwarden Item ID</label>
+        <input type="text" id="vaultwarden_item_id" name="vaultwarden_item_id" class="form-control" placeholder="e.g. 5d576a80-..." value="{{ host.vaultwarden_item_id if host else '' }}" :required="credential_source === 'vaultwarden'">
+      </div>
+      {% endif %}
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
+      <button type="button" @click="modalOpen = false" class="btn btn-secondary">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Host</button>
+    </div>
+  </form>
+</div>

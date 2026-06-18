@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  opspanel:
+    build: .
+    image: opspanel:latest
+    container_name: opspanel
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - PROJECT_ROOT=/app/data
+    volumes:
+      - ./data:/app/data
+      - ./prometheus/file_sd:/etc/prometheus/file_sd
+    networks:
+      - opspanel-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/file_sd:/etc/prometheus/file_sd
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - opspanel-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ADMIN_PASSWORD=adminpassword
+      - GF_LOG_LEVEL=debug
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/data:/var/lib/grafana
+    networks:
+      - opspanel-net
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - opspanel-net
+
+  guacd:
+    image: guacamole/guacd:latest
+    container_name: guacd
+    restart: unless-stopped
+    networks:
+      - opspanel-net
+
+  guacamole-lite:
+    build:
+      context: ./guacamole-lite
+    container_name: guacamole-lite
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - GUACD_HOST=guacd
+      - GUACD_PORT=4822
+      - GUACAMOLE_SHARED_KEY=${GUACAMOLE_SHARED_KEY}
+    depends_on:
+      - guacd
+    networks:
+      - opspanel-net
+
+networks:
+  opspanel-net:
+    driver: bridge
+

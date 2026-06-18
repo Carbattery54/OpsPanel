@@ -1,0 +1,83 @@
+<div id="hosts-table-container" style="width: 100%; overflow-x: auto;">
+  {% if hosts %}
+  <table class="data-table" style="min-width: 950px;">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Hostname</th>
+        <th>OS Type</th>
+        <th>Group</th>
+        <th>Exporter Port</th>
+        <th>Instance</th>
+        <th>Credentials</th>
+        <th>Enabled</th>
+        <th style="text-align: right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for host in hosts %}
+      <tr id="host-row-{{ host.id }}">
+        <td>
+          <a href="/hosts/{{ host.id }}" style="font-weight: 600; color: var(--primary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.375rem; transition: color var(--transition-base);" onmouseover="this.style.color='var(--primary-light, #38bdf8)'" onmouseout="this.style.color='var(--primary)'">
+            <span>{{ host.name }}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; opacity: 0.7;">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </a>
+        </td>
+        <td><code style="background: rgba(255,255,255,0.05); padding: 0.125rem 0.375rem; border-radius: var(--radius-sm); font-size: 0.8125rem;">{{ host.hostname }}</code></td>
+        <td>
+          <span class="status-badge" style="font-size: 0.6875rem; font-weight: 600; padding: 0.125rem 0.5rem; background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--border);">
+            {{ host.os_type.value }}
+          </span>
+        </td>
+        <td>
+          {{ host.group.name if host.group else "—" }}
+        </td>
+        <td>{{ host.exporter_port }}</td>
+        <td>{{ host.prometheus_instance }}</td>
+        <td>
+          {% if host.credential_source.value == "local" %}
+          <span style="color: var(--primary); font-size: 0.8125rem; font-weight: 500;">
+            Local: {{ host.local_credential.name if host.local_credential else "Not set" }}
+          </span>
+          {% else %}
+          <span style="color: var(--secondary); font-size: 0.8125rem; font-weight: 500;">
+            Vaultwarden: {{ host.vaultwarden_item_id or "Not set" }}
+          </span>
+          {% endif %}
+        </td>
+        <td>
+          <label class="switch">
+            <input type="checkbox" {% if host.enabled %}checked{% endif %}
+                   hx-post="/hosts/{{ host.id }}/toggle-enable"
+                   hx-swap="none">
+            <span class="slider"></span>
+          </label>
+        </td>
+        <td style="text-align: right;">
+          <div style="display: inline-flex; gap: 0.5rem;">
+            <button hx-get="/hosts/{{ host.id }}/edit" hx-target="#modal-body" hx-swap="innerHTML" @click="modalOpen = true" class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.75rem;">
+              Edit
+            </button>
+            <button hx-delete="/hosts/{{ host.id }}" hx-confirm="Are you sure you want to delete host {{ host.name }}?" hx-target="#host-row-{{ host.id }}" hx-swap="outerHTML" class="btn btn-danger" style="padding: 0.375rem 0.75rem; font-size: 0.75rem;">
+              Delete
+            </button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
+    <svg viewBox="0 0 24 24" fill="currentColor" style="width: 3rem; height: 3rem; margin-bottom: 1rem; opacity: 0.3;">
+      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+    </svg>
+    <p style="font-weight: 500; font-size: 1rem; color: var(--text-secondary);">No hosts found</p>
+    <p style="font-size: 0.8125rem; margin-top: 0.25rem;">Create a host group first, then register your first host node to start collecting metrics.</p>
+  </div>
+  {% endif %}
+</div>
