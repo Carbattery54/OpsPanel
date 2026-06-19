@@ -15,6 +15,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./prometheus/file_sd:/etc/prometheus/file_sd
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - opspanel-net
 
