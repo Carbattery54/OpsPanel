@@ -104,10 +104,9 @@
     copyOnSelect: true
   });
 
-  // Attach custom key event handler for Copy (Ctrl+C / Cmd+C) and Paste (Ctrl+V / Cmd+V)
+  // Attach custom key event handler for Copy (Ctrl+C / Cmd+C)
   term.attachCustomKeyEventHandler((event) => {
     const isCopy = (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'c' || event.code === 'KeyC');
-    const isPaste = (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'v' || event.code === 'KeyV');
 
     if (isCopy && event.type === 'keydown') {
       if (term.hasSelection()) {
@@ -119,18 +118,7 @@
       }
     }
 
-    if (isPaste && event.type === 'keydown') {
-      navigator.clipboard.readText().then(text => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'data', data: text }));
-        }
-      }).catch(err => {
-        console.error('Failed to read clipboard: ', err);
-      });
-      return false; // Prevent passing event to xterm.js
-    }
-
-    return true; // Let xterm.js handle all other events
+    return true; // Let xterm.js handle all other events (including native Paste)
   });
   
   const fitAddon = new FitAddon.FitAddon();
