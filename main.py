@@ -230,8 +230,7 @@ def get_new_host_form(
         {
             "host": None,
             "groups": groups,
-            "credentials": credentials,
-            "vaultwarden_enabled": settings.VAULTWARDEN_ENABLED
+            "credentials": credentials
         }
     )
 
@@ -317,8 +316,7 @@ def get_edit_host_form(
         {
             "host": host,
             "groups": groups,
-            "credentials": credentials,
-            "vaultwarden_enabled": settings.VAULTWARDEN_ENABLED
+            "credentials": credentials
         }
     )
 
@@ -818,52 +816,7 @@ class ResolvedCredential:
         self.private_key = private_key
 
 async def resolve_credential(host: Host, db: SQLSession, actor: str, source_ip: str) -> ResolvedCredential:
-    """Resolve per-host dual credentials (local database or Vaultwarden API sidecar)."""
-    if host.credential_source == CredentialSource.VAULTWARDEN:
-        if not settings.VAULTWARDEN_ENABLED:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Vaultwarden integration is disabled in settings"
-            )
-        try:
-            url = f"{settings.VAULTWARDEN_BW_SERVE_URL.rstrip('/')}/object/item/{host.vaultwarden_item_id}"
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                resp = await client.get(url)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    login = data.get("login", {})
-                    username = login.get("username", "")
-                    password = login.get("password")
-                    
-                    private_key = None
-                    fields = data.get("fields", [])
-                    for f in fields:
-                        if f.get("name") == "ssh_key":
-                            private_key = f.get("value")
-                            break
-                    
-                    log_audit(
-                        db,
-                        actor=actor,
-                        action=AuditAction.CRED_RESOLVE,
-                        host_id=host.id,
-                        detail=f"Resolved credentials from Vaultwarden item {host.vaultwarden_item_id}",
-                        source_ip=source_ip
-                    )
-                    return ResolvedCredential(username=username, secret=password, private_key=private_key)
-                else:
-                    raise HTTPException(
-                        status_code=status.HTTP_502_BAD_GATEWAY,
-                        detail=f"Vaultwarden API returned error status {resp.status_code}"
-                    )
-        except Exception as e:
-            if isinstance(e, HTTPException):
-                raise e
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to resolve Vaultwarden credentials: {e}"
-            )
-
+    """Resolve per-host credentials (local database)."""
     # Local SQLite backend
     if not host.local_credential_id:
         raise HTTPException(

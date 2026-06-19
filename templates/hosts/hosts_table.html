@@ -39,15 +39,9 @@
         <td>{{ host.exporter_port }}</td>
         <td>{{ host.prometheus_instance }}</td>
         <td>
-          {% if host.credential_source.value == "local" %}
           <span style="color: var(--primary); font-size: 0.8125rem; font-weight: 500;">
-            Local: {{ host.local_credential.name if host.local_credential else "Not set" }}
+            {{ host.local_credential.name if host.local_credential else "Not set" }}
           </span>
-          {% else %}
-          <span style="color: var(--secondary); font-size: 0.8125rem; font-weight: 500;">
-            Vaultwarden: {{ host.vaultwarden_item_id or "Not set" }}
-          </span>
-          {% endif %}
         </td>
         <td>
           <label class="switch">

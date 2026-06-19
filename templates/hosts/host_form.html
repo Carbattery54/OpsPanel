@@ -1,7 +1,6 @@
 <div x-data="{ 
   os_type: '{{ host.os_type.value if host else 'linux' }}',
-  exporter_port: {{ host.exporter_port if host else 9100 }},
-  credential_source: '{{ host.credential_source.value if host else 'local' }}'
+  exporter_port: {{ host.exporter_port if host else 9100 }}
 }" 
 x-init="$watch('os_type', val => exporter_port = (val === 'linux' ? 9100 : 9182))">
   
@@ -95,36 +94,18 @@ x-init="$watch('os_type', val => exporter_port = (val === 'linux' ? 9100 : 9182)
 
     <!-- Credentials wiring -->
     <div style="display: flex; flex-direction: column; gap: 1rem;">
-      {% if vaultwarden_enabled %}
-      <div class="form-group">
-        <label for="credential_source" class="form-label">Credential Source</label>
-        <select id="credential_source" name="credential_source" class="form-control" x-model="credential_source">
-          <option value="local">Local Encrypted Store</option>
-          <option value="vaultwarden">Vaultwarden Vault</option>
-        </select>
-      </div>
-      {% else %}
       <input type="hidden" name="credential_source" value="local">
-      {% endif %}
 
       <!-- Local credentials select list -->
-      <div class="form-group" x-show="credential_source === 'local'">
-        <label for="local_credential_id" class="form-label">Local Credential Profile</label>
-        <select id="local_credential_id" name="local_credential_id" class="form-control" :required="credential_source === 'local'">
+      <div class="form-group">
+        <label for="local_credential_id" class="form-label">Credential Profile</label>
+        <select id="local_credential_id" name="local_credential_id" class="form-control" required>
           <option value="">Select a profile...</option>
           {% for cred in credentials %}
           <option value="{{ cred.id }}" {% if host and host.local_credential_id == cred.id %}selected{% endif %}>{{ cred.name }} ({{ cred.username }})</option>
           {% endfor %}
         </select>
       </div>
-
-      <!-- Vaultwarden target select input -->
-      {% if vaultwarden_enabled %}
-      <div class="form-group" x-show="credential_source === 'vaultwarden'">
-        <label for="vaultwarden_item_id" class="form-label">Vaultwarden Item ID</label>
-        <input type="text" id="vaultwarden_item_id" name="vaultwarden_item_id" class="form-control" placeholder="e.g. 5d576a80-..." value="{{ host.vaultwarden_item_id if host else '' }}" :required="credential_source === 'vaultwarden'">
-      </div>
-      {% endif %}
     </div>
 
     <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
