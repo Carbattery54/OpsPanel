@@ -104,9 +104,10 @@
     copyOnSelect: true
   });
 
-  // Attach custom key event handler for Copy (Ctrl+C / Cmd+C)
+  // Attach custom key event handler for Copy (Ctrl+C / Cmd+C) and Paste (Ctrl+V / Cmd+V)
   term.attachCustomKeyEventHandler((event) => {
     const isCopy = (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'c' || event.code === 'KeyC');
+    const isPaste = (event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'v' || event.code === 'KeyV');
 
     if (isCopy && event.type === 'keydown') {
       if (term.hasSelection()) {
@@ -118,7 +119,11 @@
       }
     }
 
-    return true; // Let xterm.js handle all other events (including native Paste)
+    if (isPaste && event.type === 'keydown') {
+      return false; // Prevent passing event to xterm.js, letting the browser trigger native paste event
+    }
+
+    return true; // Let xterm.js handle all other events
   });
   
   const fitAddon = new FitAddon.FitAddon();
@@ -198,6 +203,15 @@
       fitAddon.fit();
       sendResize();
     }, 50);
+  });
+
+  // Intercept native browser paste event to prevent double-paste and ensure cross-browser compatibility
+  document.addEventListener('paste', (event) => {
+    event.preventDefault();
+    const text = (event.clipboardData || window.clipboardData).getData('text');
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'data', data: text }));
+    }
   });
 
   // Window resize listener
