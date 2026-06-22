@@ -323,6 +323,10 @@
     };
     keyboard.onkeyup = (keysym) => {
       if (document.activeElement === displayContainer || displayContainer.contains(document.activeElement)) {
+        if (pasteLocked && (keysym === 0x0076 || keysym === 0x0056)) {
+          console.log("Ignoring V keyup during paste lock");
+          return false;
+        }
         client.sendKeyEvent(0, keysym);
         return false;
       }
@@ -410,6 +414,8 @@
         if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
           if (pasteLocked) {
             console.log("Ctrl+V paste ignored (locked to prevent double paste)");
+            e.preventDefault();
+            e.stopPropagation();
             return;
           }
           pasteLocked = true;
