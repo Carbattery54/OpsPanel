@@ -9,10 +9,15 @@ const guacdOptions = {
     port: process.env.GUACD_PORT ? parseInt(process.env.GUACD_PORT) : 4822
 };
 
+if (!process.env.GUACAMOLE_SHARED_KEY) {
+    console.error('FATAL: GUACAMOLE_SHARED_KEY environment variable is required and has no default. Set it in your .env file.');
+    process.exit(1);
+}
+
 const clientOptions = {
     crypt: {
         cypher: 'AES-256-CBC',
-        key: process.env.GUACAMOLE_SHARED_KEY || 'guacamole_shared_secret_key_32c'
+        key: process.env.GUACAMOLE_SHARED_KEY
     },
     log: {
         level: 'VERBOSE'

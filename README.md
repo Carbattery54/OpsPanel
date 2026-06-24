@@ -9,7 +9,7 @@ Built using a light, high-performance tech stack, it provides real-time access t
 ## 🚀 Key Features
 
 *   **Infrastructure Inventory & Groups:** Organize network hosts, OS types (Linux/Windows), and dynamic labels. Generates automatic service-discovery files for Prometheus scraping configurations.
-*   **Encrypted Credential Profiles:** Securely stores target SSH keys, domain credentials, and server passwords. Protected database-level with versioned **AES-256-GCM Envelope Encryption**. Supports Vaultwarden API integration.
+*   **Encrypted Credential Profiles:** Securely stores target SSH keys, domain credentials, and server passwords. Protected database-level with versioned **AES-256-GCM Envelope Encryption**.
 *   **Embedded Telemetry & Metrics:** Interactive host telemetry screens powered by **Prometheus** and **Grafana** dashboards with Server-Sent Events (SSE) live telemetry charts.
 *   **In-Browser SSH Web Terminal:** Interactive secure shell sessions powered by **xterm.js** and WebSockets. Includes local clipboard synchronization (copy-paste), automatic resizing, and persistent font-size memory (`localStorage`).
 *   **HTML5 RDP Remote Console:** Native in-browser RDP remote desktop console powered by **Apache Guacamole (guacd)**. Uses secure short-lived AES-256-CBC token exchange to hide server credentials from the browser. Supports Turkish physical keyboard layout mapping, copy-paste lockouts, and remote file uploads.
@@ -45,7 +45,7 @@ Built using a light, high-performance tech stack, it provides real-time access t
     ```bash
     cp .env.example .env
     ```
-    *Open `.env` and configure your `SECRET_KEY`, `GUACAMOLE_SHARED_KEY` (32 characters), and other credentials.*
+    *Open `.env` and configure your `APP_SECRET`, `ENC_KEY`, `ADMIN_PASS`, and `GUACAMOLE_SHARED_KEY` (32 characters). These have no defaults and must be set.*
 
 3.  **Start application using Docker Compose:**
     ```bash
@@ -67,3 +67,9 @@ Built using a light, high-performance tech stack, it provides real-time access t
 *   Sensitive passwords and private keys are encrypted inside the SQLite database before being saved.
 *   Connections to RDP do not expose credentials to client browser sidecars or Guacamole-lite logs. Short-lived encrypted tokens are generated on-the-fly.
 *   Sessions are protected with secure HTTP cookies and user verification middleware.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).

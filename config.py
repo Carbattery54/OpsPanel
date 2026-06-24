@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     GRAFANA_URL: str = "http://grafana:3000"
     GRAFANA_DASHBOARD_UID: str = "host-metrics"
     PROMETHEUS_FILE_SD_PATH: str = "/etc/prometheus/file_sd/opspanel_targets.json"
-    GUACAMOLE_SHARED_KEY: str = "guacamole_shared_secret_key_32ch"
+    GUACAMOLE_SHARED_KEY: str
     GUACAMOLE_LITE_URL: str = ""
 
     class Config:
